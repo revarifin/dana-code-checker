@@ -1,12 +1,38 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 export default function Home() {
   const [code, setCode] = useState('')
   const [shortUrl, setShortUrl] = useState('kodetunai7se2vdd9')
   const [checking, setChecking] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [linkInfo, setLinkInfo] = useState<any>(null)
+  const [loadingLink, setLoadingLink] = useState(false)
+
+  const checkLink = async () => {
+    if (!shortUrl.trim()) {
+      alert('Short URL tidak boleh kosong')
+      return
+    }
+
+    setLoadingLink(true)
+    setLinkInfo(null)
+
+    try {
+      const res = await fetch('/api/check-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shortUrl: shortUrl.trim() })
+      })
+
+      const data = await res.json()
+      setLinkInfo(data)
+    } catch (err: any) {
+      setLinkInfo({ error: err.message || 'Gagal mengecek link' })
+    } finally {
+      setLoadingLink(false)
+    }
+  }
 
   const checkCode = async () => {
     if (!code.trim()) {
@@ -15,7 +41,6 @@ export default function Home() {
     }
 
     setChecking(true)
-    setResult(null)
 
     // Buka popup
     const popup = window.open(
@@ -30,24 +55,7 @@ export default function Home() {
       return
     }
 
-    // Simulasi monitoring (karena cross-origin, kita tidak bisa baca isi popup)
-    setResult({
-      status: 'opened',
-      message: `Popup terbuka! Masukkan kode "${code}" di halaman Dana.`,
-      code: code
-    })
-
-    // Auto-stop monitoring setelah 30 detik
-    setTimeout(() => {
-      if (checking) {
-        setChecking(false)
-        setResult((prev: any) => ({
-          ...prev,
-          status: 'timeout',
-          message: 'Apakah kode valid? Cek di popup yang terbuka.'
-        }))
-      }
-    }, 30000)
+    setTimeout(() => setChecking(false), 2000)
   }
 
   const copyCode = () => {
@@ -63,7 +71,7 @@ export default function Home() {
             Dana Kode Tunai Checker
           </h1>
           <p className="text-gray-600 text-sm">
-            Validasi kode Dana dengan popup helper
+            Cek nominal dan validasi kode Dana
           </p>
         </div>
 
@@ -72,14 +80,49 @@ export default function Home() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Short URL (setelah /s/)
             </label>
-            <input
-              type="text"
-              value={shortUrl}
-              onChange={(e) => setShortUrl(e.target.value)}
-              placeholder="kodetunai7se2vdd9"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-800"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={shortUrl}
+                onChange={(e) => setShortUrl(e.target.value)}
+                placeholder="kodetunai7se2vdd9"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-800"
+              />
+              <button
+                onClick={checkLink}
+                disabled={loadingLink}
+                className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg transition font-medium"
+              >
+                {loadingLink ? '⏳' : '💰'}
+              </button>
+            </div>
           </div>
+
+          {linkInfo && (
+            <div className={`p-4 rounded-lg ${
+              linkInfo.error 
+                ? 'bg-red-50 border border-red-200' 
+                : 'bg-green-50 border border-green-200'
+            }`}>
+              {linkInfo.error ? (
+                <div className="text-red-800">
+                  <p className="font-semibold">❌ Error</p>
+                  <p className="text-sm mt-1">{linkInfo.error}</p>
+                </div>
+              ) : (
+                <div className="text-green-800">
+                  <p className="font-semibold mb-2">✓ Info Link</p>
+                  <div className="space-y-1 text-sm">
+                    <p><span className="font-medium">Nominal:</span> Rp {linkInfo.amount}</p>
+                    <p><span className="font-medium">Status:</span> {linkInfo.linkActive ? 'Aktif' : 'Tidak aktif'}</p>
+                    {linkInfo.amountSource !== 'unknown' && (
+                      <p className="text-xs text-green-600">Sumber: {linkInfo.amountSource}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -95,7 +138,7 @@ export default function Home() {
             />
           </div>
 
-          {code && !checking && (
+          {code && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-sm text-blue-800 mb-2">Kode yang akan dicek:</p>
               <div className="flex items-center gap-2">
@@ -118,49 +161,18 @@ export default function Home() {
             disabled={!code.trim() || checking}
             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
           >
-            {checking ? '⏳ Popup Terbuka...' : '🔍 Cek Kode'}
+            {checking ? '⏳ Membuka Popup...' : '🔍 Cek Kode'}
           </button>
-
-          {result && (
-            <div className={`p-4 rounded-lg ${
-              result.status === 'opened' 
-                ? 'bg-blue-50 border border-blue-200' 
-                : 'bg-yellow-50 border border-yellow-200'
-            }`}>
-              <div className="text-blue-800">
-                <p className="font-semibold mb-2">
-                  {result.status === 'opened' ? '✓ Popup Terbuka' : 'ℹ️ Status'}
-                </p>
-                <p className="text-sm mb-3">{result.message}</p>
-                {result.code && (
-                  <div className="bg-white p-3 rounded border border-blue-300">
-                    <p className="text-xs text-gray-600 mb-1">Kode untuk di-paste:</p>
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 text-lg font-bold text-center text-gray-800">
-                        {result.code}
-                      </code>
-                      <button
-                        onClick={copyCode}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition"
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-xs text-yellow-800">
             <span className="font-semibold">💡 Cara pakai:</span>
-            <br />1. Masukkan kode di atas
-            <br />2. Klik &quot;🔍 Cek Kode&quot;
-            <br />3. Popup Dana akan terbuka otomatis
-            <br />4. Klik 📋 untuk copy, lalu paste di popup
-            <br />5. Submit di popup untuk lihat hasil (valid/tidak)
+            <br />1. Klik 💰 untuk cek nominal link
+            <br />2. Masukkan kode di form
+            <br />3. Klik &quot;🔍 Cek Kode&quot; untuk buka popup Dana
+            <br />4. Copy kode (📋) dan paste di popup
+            <br />5. Submit untuk lihat hasil
           </p>
         </div>
       </div>
