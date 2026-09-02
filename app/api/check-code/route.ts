@@ -71,6 +71,43 @@ export async function POST(request: NextRequest) {
       })
     }
   } catch (error: any) {
+    // Jika timeout/blocked, coba method alternatif (check pattern dari HTML)
+    if (error.name === 'TimeoutError' || error.message.includes('timeout')) {
+      try {
+        const fallbackRes = await fetch(`https://m.dana.id/s/${shortUrl}`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/118 Mobile Safari/537.36',
+          },
+          signal: AbortSignal.timeout(5000),
+        })
+        
+        const html = await fallbackRes.text()
+        
+        // Cek apakah halaman claim masih aktif
+        if (html.includes('spinnerHtml') || html.includes('dana-transfer')) {
+          return NextResponse.json({
+            valid: null,
+            message: 'Link masih aktif, tapi tidak bisa memverifikasi kode spesifik (server Dana memblokir bot). Silakan cek manual di browser.',
+            details: { method: 'fallback', linkActive: true }
+          })
+        } else {
+          return NextResponse.json({
+            valid: false,
+            message: 'Link sudah tidak aktif atau kadaluarsa',
+            details: { method: 'fallback', linkActive: false }
+          })
+        }
+      } catch (fallbackError: any) {
+        return NextResponse.json(
+          { 
+            error: 'Tidak bisa terhubung ke server Dana (timeout)',
+            message: 'Server Dana lambat atau memblokir request otomatis. Coba manual di browser.'
+          },
+          { status: 500 }
+        )
+      }
+    }
+    
     return NextResponse.json(
       { 
         error: 'Gagal terhubung ke server Dana',
