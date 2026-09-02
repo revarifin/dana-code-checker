@@ -21,17 +21,18 @@ export async function POST(request: NextRequest) {
       'Referer': `https://m.dana.id/s/${shortUrl}`,
     }
 
-    // Step 1: Load halaman untuk dapat cookies
+    // Step 1: Load halaman untuk dapat cookies (dengan timeout)
     const pageRes = await fetch(`https://m.dana.id/s/${shortUrl}`, {
       headers: {
         'User-Agent': headers['User-Agent'],
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
+      signal: AbortSignal.timeout(8000), // 8 detik timeout
     })
 
     const cookies = pageRes.headers.get('set-cookie') || ''
 
-    // Step 2: Submit kode ke API
+    // Step 2: Submit kode ke API (dengan timeout)
     const claimRes = await fetch('https://m.dana.id/api/cashcode/claim', {
       method: 'POST',
       headers: {
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
         code: code,
         shortUrl: shortUrl,
       }),
+      signal: AbortSignal.timeout(10000), // 10 detik timeout
     })
 
     const data = await claimRes.json()
